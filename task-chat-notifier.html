@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>タスクチャット通知</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #f5f0eb;
+    --chat-bg: #fff8f3;
+    --bot-bubble: #ffffff;
+    --user-bubble: #ff6b35;
+    --accent: #ff6b35;
+    --accent2: #ffb347;
+    --text: #2d2418;
+    --text-muted: #9e8e7e;
+    --border: #e8ddd4;
+    --success: #5cb85c;
+    --shadow: 0 2px 12px rgba(255,107,53,0.10);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Zen Maru Gothic', sans-serif;
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+  }
+
+  /* ヘッダー */
+  .header {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .header-icon {
+    width: 42px; height: 42px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 3px 10px rgba(255,107,53,0.3);
+  }
+  .header-title { font-size: 18px; font-weight: 700; color: var(--text); }
+  .header-sub { font-size: 12px; color: var(--text-muted); }
+  .notif-btn {
+    margin-left: auto;
+    background: none;
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-family: inherit;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .notif-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .notif-btn.granted { border-color: var(--success); color: var(--success); }
+
+  /* 画面内バナー通知 */
+  .notif-banner {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    padding: 0;
+    pointer-events: none;
+  }
+  .notif-banner-inner {
+    background: #2d2418;
+    color: white;
+    border-radius: 0 0 20px 20px;
+    padding: 16px 24px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: 480px;
+    width: 100%;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+    pointer-events: all;
+    transform: translateY(-110%);
+    transition: transform 0.4s cubic-bezier(.22,.68,0,1.2);
+  }
+  .notif-banner.show .notif-banner-inner {
+    transform: translateY(0);
+  }
+  .notif-banner-icon {
+    font-size: 28px;
+    animation: bellShake 0.6s ease 0.3s both;
+    flex-shrink: 0;
+  }
+  @keyframes bellShake {
+    0%,100% { transform: rotate(0); }
+    20% { transform: rotate(-20deg); }
+    40% { transform: rotate(20deg); }
+    60% { transform: rotate(-12deg); }
+    80% { transform: rotate(12deg); }
+  }
+  .notif-banner-text { flex: 1; }
+  .notif-banner-title { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+  .notif-banner-sub { font-size: 12px; opacity: 0.7; }
+  .notif-banner-close {
+    background: rgba(255,255,255,0.15);
+    border: none;
+    border-radius: 50%;
+    width: 28px; height: 28px;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .notif-banner-close:hover { background: rgba(255,255,255,0.3); }
+
+  /* タスク追加エリア */
+  .task-panel {
+    width: 100%;
+    max-width: 480px;
+    background: var(--chat-bg);
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .task-panel h3 { font-size: 13px; color: var(--text-muted); margin-bottom: 10px; }
+  .task-inputs { display: flex; flex-direction: column; gap: 8px; }
+  .task-row { display: flex; gap: 8px; align-items: center; }
+  .task-row input, .task-row select {
+    flex: 1;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-family: inherit;
+    font-size: 13px;
+    background: white;
+    color: var(--text);
+    outline: none;
+    transition: border 0.2s;
+  }
+  .task-row input:focus, .task-row select:focus { border-color: var(--accent); }
+  .task-row input[type="time"] { font-family: 'DM Mono', monospace; font-size: 15px; }
+  .add-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 8px 18px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
+  }
+  .add-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255,107,53,0.3); }
+  .add-btn:active { transform: scale(0.97); }
+
+  /* タスクリスト */
+  .task-list {
+    width: 100%;
+    max-width: 480px;
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .task-item {
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    animation: slideIn 0.3s ease;
+  }
+  .task-item.done { opacity: 0.5; text-decoration: line-through; }
+  .task-time { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; color: var(--accent); min-width: 46px; }
+  .task-name { flex: 1; color: var(--text); }
+  .task-remove { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 16px; padding: 0 4px; }
+  .task-remove:hover { color: #e74c3c; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* チャットエリア */
+  .chat-wrap {
+    width: 100%;
+    max-width: 480px;
+    background: var(--chat-bg);
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    flex: 1;
+  }
+  .chat-messages {
+    padding: 20px 16px;
+    min-height: 260px;
+    max-height: 400px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .chat-messages::-webkit-scrollbar { width: 4px; }
+  .chat-messages::-webkit-scrollbar-track { background: transparent; }
+  .chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* バブル */
+  .bubble-wrap { display: flex; align-items: flex-end; gap: 8px; animation: bubbleIn 0.35s cubic-bezier(.22,.68,0,1.2); }
+  @keyframes bubbleIn { from { opacity: 0; transform: scale(0.85) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+  .bubble-wrap.user { flex-direction: row-reverse; }
+  .avatar {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #ff6b35, #ffb347);
+    box-shadow: 0 2px 6px rgba(255,107,53,0.2);
+  }
+  .bubble {
+    max-width: 75%;
+    padding: 11px 15px;
+    border-radius: 18px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text);
+    background: var(--bot-bubble);
+    border: 1.5px solid var(--border);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .bubble-wrap.user .bubble {
+    background: var(--user-bubble);
+    color: white;
+    border-color: var(--user-bubble);
+    border-bottom-right-radius: 4px;
+  }
+  .bubble-wrap.bot .bubble { border-bottom-left-radius: 4px; }
+
+  /* 選択肢ボタン */
+  .choices {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 2px;
+    padding-left: 38px;
+    animation: bubbleIn 0.4s cubic-bezier(.22,.68,0,1.2) 0.1s both;
+  }
+  .choice-btn {
+    background: white;
+    border: 1.5px solid var(--accent);
+    border-radius: 20px;
+    padding: 7px 16px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .choice-btn:hover { background: var(--accent); color: white; transform: translateY(-1px); }
+  .choice-btn.snooze { border-color: var(--text-muted); color: var(--text-muted); }
+  .choice-btn.snooze:hover { background: var(--text-muted); color: white; }
+
+  /* 空メッセージ */
+  .empty-state {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 40px 20px;
+    line-height: 1.8;
+  }
+  .empty-state .emoji { font-size: 36px; display: block; margin-bottom: 8px; }
+
+  /* タイムスタンプ */
+  .timestamp { font-size: 10px; color: var(--text-muted); text-align: center; margin: 4px 0; }
+</style>
+</head>
+<body>
+
+<!-- 画面内バナー通知 -->
+<div class="notif-banner" id="notifBanner">
+  <div class="notif-banner-inner">
+    <div class="notif-banner-icon">⏰</div>
+    <div class="notif-banner-text">
+      <div class="notif-banner-title" id="bannerTitle">タスクの時間だよ！</div>
+      <div class="notif-banner-sub">下のチャットで確認してね ↓</div>
+    </div>
+    <button class="notif-banner-close" onclick="hideBanner()">✕</button>
+  </div>
+</div>
+
+<div class="header">
+  <div class="header-icon">🌟</div>
+  <div>
+    <div class="header-title">タスクチャット</div>
+    <div class="header-sub">やることを一緒に確認しよう</div>
+  </div>
+
+</div>
+
+<!-- タスク追加 -->
+<div class="task-panel">
+  <h3>📋 タスクを追加する</h3>
+  <div class="task-inputs">
+    <div class="task-row">
+      <input type="text" id="taskName" placeholder="タスク名（例：水を飲む）" maxlength="30">
+      <input type="time" id="taskTime" value="10:00">
+    </div>
+    <div class="task-row">
+      <button class="add-btn" onclick="addTask()">＋ 追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- タスクリスト -->
+<div class="task-list" id="taskList"></div>
+
+<!-- チャット -->
+<div class="chat-wrap">
+  <div class="chat-messages" id="chatMessages">
+    <div class="empty-state">
+      <span class="emoji">💬</span>
+      タスクを追加して通知時間になると<br>ここにメッセージが届くよ！<br><br>
+      <small>※ブラウザタブを開いている間は動作します</small>
+    </div>
+  </div>
+</div>
+
+<script>
+  let tasks = JSON.parse(localStorage.getItem('chatTasks') || '[]');
+  let checkedTasks = new Set();
+  let currentTaskForSnooze = null;
+  let checkInterval = null;
+
+  // タスク追加
+  function addTask() {
+    const name = document.getElementById('taskName').value.trim();
+    const time = document.getElementById('taskTime').value;
+    if (!name || !time) return;
+    const id = Date.now();
+    tasks.push({ id, name, time, done: false });
+    saveTasks();
+    renderTaskList();
+    document.getElementById('taskName').value = '';
+    document.getElementById('taskName').focus();
+  }
+
+  function removeTask(id) {
+    tasks = tasks.filter(t => t.id !== id);
+    saveTasks();
+    renderTaskList();
+  }
+
+  function saveTasks() {
+    localStorage.setItem('chatTasks', JSON.stringify(tasks));
+  }
+
+  function renderTaskList() {
+    const el = document.getElementById('taskList');
+    if (tasks.length === 0) { el.innerHTML = ''; return; }
+    el.innerHTML = tasks.map(t => `
+      <div class="task-item ${t.done ? 'done' : ''}" id="ti-${t.id}">
+        <span class="task-time">${t.time}</span>
+        <span class="task-name">${escHtml(t.name)}</span>
+        <button class="task-remove" onclick="removeTask(${t.id})">✕</button>
+      </div>
+    `).join('');
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // 時刻チェック
+  function startClock() {
+    if (checkInterval) clearInterval(checkInterval);
+    checkInterval = setInterval(() => {
+      const now = new Date();
+      const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      tasks.forEach(task => {
+        const key = `${task.id}-${hhmm}`;
+        if (task.time === hhmm && !checkedTasks.has(key)) {
+          checkedTasks.add(key);
+          triggerTask(task);
+        }
+      });
+    }, 10000); // 10秒ごとにチェック
+  }
+
+  function triggerTask(task) {
+    // 通知音（Web Audio API）
+    playNotifSound();
+    // 画面内バナー（ブラウザ通知の代替・常に動く）
+    showBanner(task.name);
+    // ブラウザ通知（許可されていれば）
+    if (Notification.permission === 'granted') {
+      new Notification(`⏰ ${task.name} の時間だよ！`, {
+        body: 'タスクを確認してね',
+        icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🌟</text></svg>'
+      });
+    }
+    // チャットに通知
+    currentTaskForSnooze = task;
+    clearEmptyState();
+    addTimestamp();
+    addBotMessage(`⏰ <strong>${escHtml(task.name)}</strong> の時間だよ！<br>どうだった？`);
+    addChoices(task);
+    // チャット欄が見えるようにページ最下部へスクロール
+    setTimeout(() => {
+      document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+      document.querySelector('.chat-wrap').scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, 100);
+  }
+
+  // 画面内バナー通知
+  let bannerTimer = null;
+  function showBanner(taskName) {
+    document.getElementById('bannerTitle').textContent = `⏰ ${taskName} の時間だよ！`;
+    const banner = document.getElementById('notifBanner');
+    banner.classList.add('show');
+    if (bannerTimer) clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(hideBanner, 6000);
+  }
+  function hideBanner() {
+    document.getElementById('notifBanner').classList.remove('show');
+  }
+
+  // Web Audio APIで通知音を鳴らす
+  function playNotifSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const notes = [523.25, 659.25, 783.99]; // ド・ミ・ソ
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        const start = ctx.currentTime + i * 0.15;
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(0.3, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
+        osc.start(start);
+        osc.stop(start + 0.4);
+      });
+    } catch(e) { /* 音が鳴らなくてもOK */ }
+  }
+
+  function clearEmptyState() {
+    const msgs = document.getElementById('chatMessages');
+    const empty = msgs.querySelector('.empty-state');
+    if (empty) empty.remove();
+  }
+
+  function addTimestamp() {
+    const now = new Date();
+    const t = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const el = document.createElement('div');
+    el.className = 'timestamp';
+    el.textContent = t;
+    document.getElementById('chatMessages').appendChild(el);
+  }
+
+  function addBotMessage(html) {
+    const wrap = document.createElement('div');
+    wrap.className = 'bubble-wrap bot';
+    wrap.innerHTML = `
+      <div class="avatar">🌟</div>
+      <div class="bubble">${html}</div>
+    `;
+    document.getElementById('chatMessages').appendChild(wrap);
+    scrollChat();
+  }
+
+  function addUserMessage(text) {
+    const wrap = document.createElement('div');
+    wrap.className = 'bubble-wrap user';
+    wrap.innerHTML = `<div class="bubble">${escHtml(text)}</div>`;
+    document.getElementById('chatMessages').appendChild(wrap);
+    scrollChat();
+  }
+
+  function addChoices(task) {
+    const div = document.createElement('div');
+    div.className = 'choices';
+    div.id = 'choices-current';
+    div.innerHTML = `
+      <button class="choice-btn" onclick="onDone(${task.id})">✅ やったよ！</button>
+      <button class="choice-btn snooze" onclick="showSnooze(${task.id})">⏱ まだ…</button>
+    `;
+    document.getElementById('chatMessages').appendChild(div);
+    scrollChat();
+  }
+
+  function removeChoices() {
+    const c = document.getElementById('choices-current');
+    if (c) c.remove();
+  }
+
+  function onDone(taskId) {
+    removeChoices();
+    addUserMessage('やったよ！');
+    const task = tasks.find(t => t.id === taskId);
+    const praises = [
+      `✨ すごい！<strong>${task ? escHtml(task.name) : 'タスク'}</strong>、完了！えらい！`,
+      `🎉 やった〜！完璧！その調子でいこう！`,
+      `💪 ちゃんとできてるね！えらい！`,
+      `🌈 すごいじゃん！今日も一歩前進！`,
+      `⭐️ おつかれさま！よくやった！`,
+    ];
+    const rares = [
+      `…山は動かないが、あなたは動いた…私は今、猛烈に感動している…！`,
+      `ちょっと待って…やったの…？えら…好き…急に好きになってしまった…どうしよう…`,
+    ];
+    const isRare = Math.random() < 1 / 20;
+    const msg = isRare
+      ? rares[Math.floor(Math.random() * rares.length)]
+      : praises[Math.floor(Math.random() * praises.length)];
+    setTimeout(() => { addBotMessage(msg); }, 400);
+  }
+
+  function showSnooze(taskId) {
+    removeChoices();
+    addUserMessage('まだ…');
+    const div = document.createElement('div');
+    div.className = 'choices';
+    div.id = 'choices-current';
+    div.innerHTML = `
+      <div style="width:100%;font-size:13px;color:#9e8e7e;margin-bottom:4px;">何分後にまた教える？</div>
+      <button class="choice-btn snooze" onclick="snoozeTask(${taskId},5)">5分後</button>
+      <button class="choice-btn snooze" onclick="snoozeTask(${taskId},10)">10分後</button>
+      <button class="choice-btn snooze" onclick="snoozeTask(${taskId},30)">30分後</button>
+      <button class="choice-btn snooze" onclick="snoozeTask(${taskId},60)">1時間後</button>
+    `;
+    document.getElementById('chatMessages').appendChild(div);
+    setTimeout(() => addBotMessage('いつでも大丈夫だよ〜！'), 300);
+    scrollChat();
+  }
+
+  function snoozeTask(taskId, minutes) {
+    removeChoices();
+    addUserMessage(`${minutes}分後にお願い！`);
+    const task = tasks.find(t => t.id === taskId);
+    setTimeout(() => {
+      addBotMessage(`⏰ ${minutes}分後にまた教えるね！`);
+    }, 400);
+    setTimeout(() => {
+      if (task) triggerTask(task);
+    }, minutes * 60 * 1000);
+  }
+
+  function scrollChat() {
+    const el = document.getElementById('chatMessages');
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // Enterキーはタスク追加しない（変換確定のみ）
+  document.getElementById('taskName').addEventListener('keydown', e => {
+    if (e.key === 'Enter') e.preventDefault();
+  });
+
+  // テスト用：コンソールから呼べる
+  window.testNotify = (taskName) => {
+    triggerTask({ id: 9999, name: taskName || 'テストタスク', time: '00:00' });
+  };
+
+  // 初期化
+  renderTaskList();
+  startClock();
+</script>
+</body>
+</html>
