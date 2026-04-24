@@ -67,6 +67,44 @@
   .notif-btn:hover { border-color: var(--accent); color: var(--accent); }
   .notif-btn.granted { border-color: var(--success); color: var(--success); }
 
+  /* 通知許可バナー */
+  .permission-banner {
+    width: 100%; max-width: 480px;
+    background: #fff8ec;
+    border: 1.5px solid #ffcc80;
+    border-radius: 14px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text);
+  }
+  .permission-banner span { flex: 1; }
+  .permission-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .permission-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    flex-shrink: 0;
+    padding: 0 2px;
+  }
+
   /* 画面内バナー通知 */
   .notif-banner {
     position: fixed;
@@ -309,7 +347,13 @@
     <div class="header-title">タスクチャット</div>
     <div class="header-sub">やることを一緒に確認しよう</div>
   </div>
+</div>
 
+<!-- 通知許可バナー（未許可のときだけ表示） -->
+<div class="permission-banner" id="permissionBanner">
+  <span>🔔 通知を許可すると時間になったら知らせるよ</span>
+  <button class="permission-btn" onclick="askNotifPermission()">許可する</button>
+  <button class="permission-close" onclick="document.getElementById('permissionBanner').style.display='none'">✕</button>
 </div>
 
 <!-- タスク追加 -->
@@ -345,6 +389,20 @@
   let checkedTasks = new Set();
   let currentTaskForSnooze = null;
   let checkInterval = null;
+
+  // 通知許可バナー制御
+  function initPermissionBanner() {
+    const banner = document.getElementById('permissionBanner');
+    if (!('Notification' in window) || Notification.permission === 'granted' || Notification.permission === 'denied') {
+      banner.style.display = 'none';
+    }
+  }
+
+  function askNotifPermission() {
+    Notification.requestPermission().then(result => {
+      document.getElementById('permissionBanner').style.display = 'none';
+    });
+  }
 
   // タスク追加
   function addTask() {
@@ -580,6 +638,7 @@
   };
 
   // 初期化
+  initPermissionBanner();
   renderTaskList();
   startClock();
 </script>
